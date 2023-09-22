@@ -22,8 +22,8 @@ This tool automatically generates CloudWatch alarms for common AWS infrastructur
 1. Clone the repository:
 
 ```bash
-git clone [repository-url]
-cd [repository-directory]
+git clone https://github.com/jessegersensonchess/aws-cloudwatch-alerts
+cd aws-cloudwatch-alerts
 ```
 
 2. Compile the tool:
@@ -39,6 +39,12 @@ go build -o cloudwatch-alerts-generator
 ```
 
 Replace `[AWS_REGION]` with the desired AWS region (e.g., `us-east-1`) and `[AWS_CLI_PROFILE]` with the AWS CLI profile name you wish to use.
+
+## Docker
+```
+docker built -t cloudwatch-alerts-generator:latest .
+docker run --rm -v ${HOME}/.aws/:/root/.aws cloudwatch-alerts-generator -region us-east-2 -profile default
+```
 
 ## Flags
 
