@@ -11,7 +11,7 @@ on:
     tags:
       - 'release'
   schedule:
-    - cron: "00 06 * * 6"
+    - cron: "00 06 01 * *"
   pull_request:
     branches: [ "master" ]
 
@@ -58,7 +58,7 @@ jobs:
 
     - name: 'Create GitHub Release'
       id: create-new-release
-      uses: actions/create-release@v1
+      uses: actions/create-release@v3
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
