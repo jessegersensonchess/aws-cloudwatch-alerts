@@ -1,4 +1,5 @@
-// Generates cloudwatch alerts for common aws infrastructure
+// Generates CloudWatch alerts for common AWS infrastructure components.
+
 package main
 
 import (
@@ -11,16 +12,15 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
-
 	"github.com/aws/aws-sdk-go/service/cloudwatch"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/ecs"
 	"github.com/aws/aws-sdk-go/service/elbv2"
 	"github.com/aws/aws-sdk-go/service/rds"
-
 	"github.com/aws/aws-sdk-go/service/sts"
 )
 
+// AlarmDetails struct holds the necessary details for creating a CloudWatch alarm.
 type AlarmDetails struct {
 	Namespace          string
 	MetricName         string
@@ -34,6 +34,7 @@ type AlarmDetails struct {
 	Unit               string
 }
 
+// getAccountId fetches the AWS account ID using STS.
 func getAccountId(sess *session.Session) string {
 	// Create a new client for the STS service.
 	stsClient := sts.New(sess)
@@ -45,11 +46,11 @@ func getAccountId(sess *session.Session) string {
 		os.Exit(1)
 	}
 
-	// Print the account ID
+	// Return the account ID
 	return *callerIdentity.Account
-
 }
 
+// createAlarm creates a CloudWatch alarm based on provided details.
 func createAlarm(cloudwatchClient *cloudwatch.CloudWatch, details AlarmDetails, alarmThreshold float64, snsTopicArn string) error {
 	alarmName := fmt.Sprintf("%s_%s", details.MetricName, details.ResourceID)
 
@@ -89,7 +90,7 @@ func createAlarm(cloudwatchClient *cloudwatch.CloudWatch, details AlarmDetails, 
 	return nil
 }
 
-// Check if cloudwatch alarm exists
+// alarmExists checks if a CloudWatch alarm with the given name already exists.
 func alarmExists(cloudwatchClient *cloudwatch.CloudWatch, alarmName string) (bool, error) {
 	alarms, err := cloudwatchClient.DescribeAlarms(&cloudwatch.DescribeAlarmsInput{
 		AlarmNames: []*string{aws.String(alarmName)},
@@ -101,6 +102,7 @@ func alarmExists(cloudwatchClient *cloudwatch.CloudWatch, alarmName string) (boo
 	return len(alarms.MetricAlarms) > 0, nil
 }
 
+// getRunningEC2Instances retrieves a list of currently running EC2 instances.
 func getRunningEC2Instances(sess *session.Session) ([]*ec2.Instance, error) {
 	ec2Client := ec2.New(sess)
 	resp, err := ec2Client.DescribeInstances(&ec2.DescribeInstancesInput{})
@@ -119,6 +121,7 @@ func getRunningEC2Instances(sess *session.Session) ([]*ec2.Instance, error) {
 	return runningInstances, nil
 }
 
+// createCloudwatchAlarmForEC2Instances creates CloudWatch alarms for running EC2 instances.
 func createCloudwatchAlarmForEC2Instances(sess *session.Session, alarmThreshold float64, snsTopicArn string) {
 	cloudwatchClient := cloudwatch.New(sess)
 
@@ -159,6 +162,7 @@ func createCloudwatchAlarmForEC2Instances(sess *session.Session, alarmThreshold 
 	log.Println("Finished creating alarms for all running EC2 instances.")
 }
 
+// createCloudwatchAlarmForECSServices creates CloudWatch alarms for ECS services.
 func createCloudwatchAlarmForECSServices(sess *session.Session, alarmThreshold float64, snsTopicArn string) {
 	ecsClient := ecs.New(sess)
 	cloudwatchClient := cloudwatch.New(sess)
@@ -234,6 +238,7 @@ func createCloudwatchAlarmForECSServices(sess *session.Session, alarmThreshold f
 	log.Println("Finished creating alarms for all ECS services.")
 }
 
+// createCloudwatchAlarmForRDSInstances creates CloudWatch alarms for RDS instances.
 func createCloudwatchAlarmForRDSInstances(sess *session.Session, alarmThreshold float64, snsTopicArn string) {
 	rdsClient := rds.New(sess)
 	cloudwatchClient := cloudwatch.New(sess)
@@ -279,6 +284,7 @@ func createCloudwatchAlarmForRDSInstances(sess *session.Session, alarmThreshold 
 	wg.Wait()
 }
 
+// getRDSTotalStorageSpace retrieves the total storage space allocated for a given RDS instance.
 func getRDSTotalStorageSpace(rdsClient *rds.RDS, dbInstanceIdentifier string) (int64, error) {
 	input := &rds.DescribeDBInstancesInput{
 		DBInstanceIdentifier: aws.String(dbInstanceIdentifier),
@@ -297,6 +303,7 @@ func getRDSTotalStorageSpace(rdsClient *rds.RDS, dbInstanceIdentifier string) (i
 	return 0, fmt.Errorf("no allocated storage information found for DBInstanceIdentifier '%s'", dbInstanceIdentifier)
 }
 
+// createCloudwatchAlarmForALBs creates CloudWatch alarms for Application Load Balancers.
 func createCloudwatchAlarmForALBs(sess *session.Session, alarmThreshold float64, snsTopicArn string) {
 	elbv2Client := elbv2.New(sess)
 	cloudwatchClient := cloudwatch.New(sess)
@@ -341,6 +348,7 @@ func createCloudwatchAlarmForALBs(sess *session.Session, alarmThreshold float64,
 }
 
 func main() {
+	// Command line flags for specifying AWS region and profile.
 	region := flag.String("region", "us-east-2", "AWS region")
 	profile := flag.String("profile", "4511dev", "AWS CLI profile name")
 	flag.Parse()
@@ -353,6 +361,7 @@ func main() {
 	}
 	fmt.Println(regionName, profileName)
 
+	// Create a new AWS session.
 	sess, err := session.NewSessionWithOptions(session.Options{
 		// remove Profile to run as Lambda function
 		Profile: profileName,
@@ -364,8 +373,10 @@ func main() {
 		return
 	}
 
+	// Construct the SNS topic ARN.
 	snsTopicArn := fmt.Sprintf("arn:aws:sns:%s:%s:jesse-test", regionName, getAccountId(sess))
 
+	// Create CloudWatch alarms for various AWS resources.
 	createCloudwatchAlarmForEC2Instances(sess, alarmThreshold, snsTopicArn)
 	createCloudwatchAlarmForECSServices(sess, alarmThreshold, snsTopicArn)
 	createCloudwatchAlarmForRDSInstances(sess, alarmThreshold, snsTopicArn)
