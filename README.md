@@ -42,7 +42,7 @@ Replace `[AWS_REGION]` with the desired AWS region (e.g., `us-east-1`) and `[AWS
 
 ## Docker
 ```
-docker built -t cloudwatch-alerts-generator:latest .
+docker build -t cloudwatch-alerts-generator:latest .
 docker run --rm -v ${HOME}/.aws/:/root/.aws cloudwatch-alerts-generator -region us-east-2 -profile default
 ```
 
