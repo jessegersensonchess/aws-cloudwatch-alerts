@@ -85,7 +85,12 @@ func createAlarm(cloudwatchClient *cloudwatch.CloudWatch, details AlarmDetails, 
 		AlarmActions:       []*string{aws.String(snsTopicArn)},
 		AlarmDescription:   aws.String(fmt.Sprintf("Alarm when %s %s %f %s", details.MetricName, details.ComparisonOperator, alarmThreshold, details.Unit)),
 		Dimensions:         dimensions,
-		Unit:               aws.String(details.Unit),
+	}
+
+	// Conditionally set the Unit field
+	if details.Unit != "" {
+		alarmInput.Unit = aws.String(details.Unit)
+		alarmInput.AlarmDescription = aws.String(fmt.Sprintf("Alarm when %s %s %f %s", details.MetricName, details.ComparisonOperator, alarmThreshold, details.Unit))
 	}
 
 	_, err = cloudwatchClient.PutMetricAlarm(alarmInput)
@@ -93,8 +98,9 @@ func createAlarm(cloudwatchClient *cloudwatch.CloudWatch, details AlarmDetails, 
 		return err
 	}
 
-	if !exists {
-		//log.Printf("Alarm updated for resource: %s with metric: %s", details.ResourceID, details.MetricName)
+	if exists {
+		log.Printf("Alarm updated for resource: %s with metric: %s", details.ResourceID, details.MetricName)
+	} else {
 		log.Printf("Alarm created for resource: %s with metric: %s", details.ResourceID, details.MetricName)
 	}
 
@@ -370,21 +376,31 @@ func listALBs(client *elbv2.ELBV2) ([]*elbv2.LoadBalancer, error) {
 func handleALB(cloudwatchClient *cloudwatch.CloudWatch, loadBalancerName string, alarmThreshold float64, snsTopicArn string) {
 	details := AlarmDetails{
 		Namespace:          "AWS/ApplicationELB",
-		MetricName:         "HTTPCode_ELB_5xx_Count",
+		MetricName:         "HTTPCode_ELB_5XX_Count",
 		ResourceID:         loadBalancerName,
 		DimensionNames:     []string{"LoadBalancer"},
 		DimensionValues:    []string{loadBalancerName},
 		ComparisonOperator: "GreaterThanThreshold",
 		EvaluationPeriods:  1,
-		Period:             900,
+		Period:             600,
 		Statistic:          "Sum",
-		Unit:               "Count",
 	}
 
 	err := createAlarm(cloudwatchClient, details, alarmThreshold, snsTopicArn)
 	if err != nil {
 		log.Printf("Failed to create alarm for Application Load Balancer %s: %v", loadBalancerName, err)
 	}
+}
+
+// getLoadBalancerId extracts the LoadBalancer ID from the provided ARN string.
+func getLoadBalancerId(arn string) string {
+	parts := strings.Split(arn, "/")
+
+	if len(parts) >= 3 {
+		result := parts[len(parts)-3] + "/" + parts[len(parts)-2] + "/" + parts[len(parts)-1]
+		return result
+	}
+	return "String format unexpected"
 }
 
 // createCloudwatchAlarmForALBs creates CloudWatch alarms for Application Load Balancers.
@@ -401,7 +417,7 @@ func createCloudwatchAlarmForALBs(sess *session.Session, alarmThreshold float64,
 	var wg sync.WaitGroup
 
 	for _, lb := range loadBalancers {
-		loadBalancerName := aws.StringValue(lb.LoadBalancerName)
+		loadBalancerName := getLoadBalancerId(*lb.LoadBalancerArn)
 
 		wg.Add(1)
 		go func(lbName string) {
@@ -446,5 +462,5 @@ func main() {
 	createCloudwatchAlarmForEC2Instances(sess, alarmThreshold, snsTopicArn)
 	createCloudwatchAlarmForECSServices(sess, alarmThreshold, snsTopicArn)
 	createCloudwatchAlarmForRDSInstances(sess, alarmThreshold, snsTopicArn)
-	createCloudwatchAlarmForALBs(sess, 10, snsTopicArn)
+	createCloudwatchAlarmForALBs(sess, 5, snsTopicArn)
 }
