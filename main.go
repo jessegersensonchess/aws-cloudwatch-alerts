@@ -83,7 +83,7 @@ func createAlarm(cloudwatchClient *cloudwatch.CloudWatch, details AlarmDetails, 
 		Threshold:          aws.Float64(alarmThreshold),
 		ActionsEnabled:     aws.Bool(true),
 		AlarmActions:       []*string{aws.String(snsTopicArn)},
-		AlarmDescription:   aws.String(fmt.Sprintf("Alarm when %s %s %f %s", details.MetricName, details.ComparisonOperator, alarmThreshold, details.Unit)),
+		AlarmDescription:   aws.String(fmt.Sprintf("Alarm when %s %s %f", details.MetricName, details.ComparisonOperator, alarmThreshold)),
 		Dimensions:         dimensions,
 	}
 
@@ -459,8 +459,42 @@ func main() {
 	snsTopicArn := fmt.Sprintf("arn:aws:sns:%s:%s:jesse-test", regionName, getAccountId(sess))
 
 	// Create CloudWatch alarms for various AWS resources.
-	createCloudwatchAlarmForEC2Instances(sess, alarmThreshold, snsTopicArn)
-	createCloudwatchAlarmForECSServices(sess, alarmThreshold, snsTopicArn)
-	createCloudwatchAlarmForRDSInstances(sess, alarmThreshold, snsTopicArn)
-	createCloudwatchAlarmForALBs(sess, 5, snsTopicArn)
+	//	createCloudwatchAlarmForEC2Instances(sess, alarmThreshold, snsTopicArn)
+	//	createCloudwatchAlarmForECSServices(sess, alarmThreshold, snsTopicArn)
+	//	createCloudwatchAlarmForRDSInstances(sess, alarmThreshold, snsTopicArn)
+	//	createCloudwatchAlarmForALBs(sess, 5, snsTopicArn)
+
+	var wg sync.WaitGroup
+
+	// Create CloudWatch alarms for EC2 instances.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		createCloudwatchAlarmForEC2Instances(sess, alarmThreshold, snsTopicArn)
+	}()
+
+	// Create CloudWatch alarms for ECS services.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		createCloudwatchAlarmForECSServices(sess, alarmThreshold, snsTopicArn)
+	}()
+
+	// Create CloudWatch alarms for RDS instances.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		createCloudwatchAlarmForRDSInstances(sess, alarmThreshold, snsTopicArn)
+	}()
+
+	// Create CloudWatch alarms for ALBs.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		createCloudwatchAlarmForALBs(sess, 5, snsTopicArn)
+	}()
+
+	// Wait for all goroutines to finish.
+	wg.Wait()
+
 }
